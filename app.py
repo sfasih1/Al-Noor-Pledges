@@ -1,0 +1,260 @@
+import os, math, logging, json
+from flask import Flask, request, jsonify, send_from_directory
+from dotenv import load_dotenv
+import stripe
+
+# Load environment variables
+load_dotenv()
+
+# Setup logging for production
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+# === REQUIRED: Your live/test secret key must be set in .env as STRIPE_SECRET_KEY ===
+stripe_key = os.getenv("STRIPE_SECRET_KEY")
+if not stripe_key:
+    logger.error("STRIPE_SECRET_KEY not set in environment variables!")
+    raise ValueError("STRIPE_SECRET_KEY environment variable is required")
+
+stripe.api_key = stripe_key
+
+app = Flask(__name__, static_folder="static", static_url_path="/static")
+
+# Production mode
+PROD_MODE = os.getenv("FLASK_ENV") == "production"
+app.config['DEBUG'] = not PROD_MODE
+
+# Default redirect URLs (can be overridden via env)
+BASE_URL = os.getenv("BASE_URL", "http://localhost:4242")
+SUCCESS_URL = os.getenv("SUCCESS_URL", f"{BASE_URL}/thank-you")
+CANCEL_URL  = os.getenv("CANCEL_URL",  f"{BASE_URL}/error")
+
+# Al-Noor Pledges Configuration
+TOTAL_UNITS = 100
+UNIT_PRICE = 1000  # $1,000 per unit
+MIN_UNITS = 1
+MAX_UNITS = TOTAL_UNITS
+
+# Unit tracking file
+UNITS_FILE = "/tmp/units_data.json"  # Use /tmp for ephemeral filesystem compatibility
+DEFAULT_UNITS = 100
+
+ZERO_DECIMAL_CURRENCIES = {"bif","clp","djf","gnf","jpy","kmf","krw","mga","pyg","rwf","ugx","vnd","vuv","xaf","xof","xpf"}
+
+# Initialize units file if it doesn't exist
+def init_units():
+    if not os.path.exists(UNITS_FILE):
+        with open(UNITS_FILE, 'w') as f:
+            json.dump({
+                "al-noor": DEFAULT_UNITS
+            }, f)
+
+def get_remaining_units():
+    """Get remaining units for Al-Noor Islamic Center"""
+    init_units()
+    try:
+        with open(UNITS_FILE, 'r') as f:
+            data = json.load(f)
+            return data.get("al-noor", DEFAULT_UNITS)
+    except:
+        return DEFAULT_UNITS
+
+def decrement_units(units_to_decrement):
+    """Decrement units for Al-Noor Islamic Center"""
+    init_units()
+    try:
+        with open(UNITS_FILE, 'r') as f:
+            data = json.load(f)
+        
+        remaining = data.get("al-noor", DEFAULT_UNITS)
+        remaining = max(0, remaining - units_to_decrement)
+        data["al-noor"] = remaining
+        
+        with open(UNITS_FILE, 'w') as f:
+            json.dump(data, f)
+        return data
+    except:
+        return DEFAULT_UNITS
+
+def to_unit_amount(amount: float, currency: str) -> int:
+    a = float(amount)
+    if not math.isfinite(a) or a <= 0:
+        raise ValueError("Invalid amount")
+    if currency.lower() in ZERO_DECIMAL_CURRENCIES:
+        return int(round(a))  # e.g., JPY
+    return int(round(a * 100)) # e.g., USD
+
+@app.post("/create-checkout-session")
+def create_checkout_session():
+    try:
+        data = request.get_json(force=True)
+        donation_type = (data.get("donation_type") or "units").lower()
+        currency = (data.get("currency") or "usd").lower()
+        frequency = (data.get("frequency") or "monthly").lower()  # once | weekly | monthly
+        duration = int(data.get("duration", 1))  # weeks or months
+        donor_name = data.get("donor_name", "Anonymous")
+        donor_email = data.get("donor_email", "")
+        includes_zakat = data.get("includes_zakat", False)
+        zakat_amount = float(data.get("zakat_amount", 0))
+        is_dedicated = data.get("is_dedicated", False)
+        dedication_names = data.get("dedication_names", "")
+
+        # Determine amount based on donation type
+        if donation_type == "units":
+            units = int(data.get("units", 1))
+            # Validate units
+            if units < MIN_UNITS or units > MAX_UNITS:
+                return jsonify({"error": f"Units must be between {MIN_UNITS} and {MAX_UNITS}."}), 400
+            per_installment_amount = units * UNIT_PRICE
+            product_name = f"Al-Noor Pledge - {units} Unit(s)"
+        else:  # custom
+            units = None
+            custom_amount = float(data.get("custom_amount", 0))
+            if custom_amount <= 0:
+                return jsonify({"error": "Custom amount must be greater than 0."}), 400
+            per_installment_amount = custom_amount
+            product_name = "Al-Noor Pledge - Custom Donation"
+
+        # Validate duration
+        if frequency == "weekly" and (duration < 1 or duration > 26):
+            return jsonify({"error": "Duration must be between 1 and 26 weeks."}), 400
+        if frequency == "monthly" and (duration < 1 or duration > 6):
+            return jsonify({"error": "Duration must be between 1 and 6 months."}), 400
+
+        # For recurring with duration > 1, this becomes a payment plan (divide amount by duration)
+        # For one-time, charge the full amount
+        if frequency == "once":
+            total_amount = per_installment_amount * duration
+            per_period_amount = total_amount  # charge it all at once
+        elif duration > 1:
+            # Payment plan: charge per_installment_amount total, split across duration periods
+            total_amount = per_installment_amount
+            per_period_amount = total_amount / duration
+        else:
+            # True recurring: charge per_installment_amount every period
+            total_amount = per_installment_amount
+            per_period_amount = total_amount
+
+        unit_amount = to_unit_amount(per_period_amount, currency)
+
+        # Guardrails
+        MIN = 100 if currency not in ZERO_DECIMAL_CURRENCIES else 1
+        MAX = 100000000
+        if unit_amount < MIN or unit_amount > MAX:
+            return jsonify({"error": "Amount out of allowed range."}), 400
+
+        is_recurring = frequency in ("weekly", "monthly")
+        price_data = {
+            "currency": currency,
+            "unit_amount": unit_amount,
+            "product_data": {"name": product_name}
+        }
+        
+        if is_recurring:
+            price_data["recurring"] = {
+                "interval": "week" if frequency == "weekly" else "month"
+            }
+
+        # Build metadata
+        metadata = {
+            "organization": "al-noor",
+            "donation_type": donation_type,
+            "donor_name": donor_name,
+            "frequency": frequency,
+            "duration": str(duration),
+            "includes_zakat": str(includes_zakat),
+            "zakat_amount": str(zakat_amount),
+            "is_dedicated": str(is_dedicated),
+            "dedication_names": dedication_names
+        }
+        
+        # Include units only if donation type is units
+        if donation_type == "units":
+            metadata["units"] = str(units)
+
+        # Build session parameters
+        session_params = {
+            "mode": "subscription" if is_recurring else "payment",
+            "line_items": [{"price_data": price_data, "quantity": 1}],
+            "success_url": SUCCESS_URL,
+            "cancel_url": CANCEL_URL,
+            "metadata": metadata
+        }
+
+        # Add customer email if provided
+        if donor_email:
+            session_params["customer_email"] = donor_email
+
+        session = stripe.checkout.Session.create(**session_params)
+        
+        # Decrement units immediately upon successful session creation (for unit-based pledges)
+        if donation_type == "units" and units:
+            decrement_units(units)
+        
+        return jsonify({"url": session.url})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 400
+
+@app.get("/get-units")
+def get_units():
+    remaining = get_remaining_units()
+    return jsonify({"organization": "al-noor", "remaining_units": remaining})
+
+@app.post("/webhook")
+def webhook():
+    # Raw body required for signature verification
+    payload = request.data
+    sig_header = request.headers.get("Stripe-Signature")
+    endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
+
+    # During first runs, you may not have a webhook secret set yet.
+    if not endpoint_secret:
+        return "Webhook endpoint not yet configured.", 200
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
+    except Exception as e:
+        return f"Invalid signature or payload: {e}", 400
+
+    # Handle important events
+    if event["type"] == "checkout.session.completed":
+        session = event["data"]["object"]
+        metadata = session.get("metadata", {})
+        # One-time: session["payment_intent"]
+        # Recurring: session["subscription"]
+        donation_info = f"{metadata.get('units')} units" if metadata.get('units') else "custom donation"
+        zakat_info = ""
+        if metadata.get('includes_zakat') == 'True':
+            zakat_info = f" | Zakat Amount: ${metadata.get('zakat_amount')}"
+        dedication_info = ""
+        if metadata.get('is_dedicated') == 'True' and metadata.get('dedication_names'):
+            dedication_info = f" | Dedicated to: {metadata.get('dedication_names')}"
+        logger.info(f"Pledge completed: {metadata.get('donor_name')} for {donation_info} to Al-Noor Islamic Center | Frequency: {metadata.get('frequency')} | Duration: {metadata.get('duration')}{zakat_info}{dedication_info} | Session: {session['id']}")
+        # TODO: record pledge; send thank-you email; update CRM
+    
+    elif event["type"] == "invoice.paid":
+        invoice = event["data"]["object"]
+        # Recurring pledge payment received
+        logger.info(f"Recurring payment received: {invoice.get('id')} | Subscription: {invoice.get('subscription')}")
+        # TODO: record recurring payment
+
+    return "", 200
+
+@app.get("/")
+def donor_page():
+    return send_from_directory("static", "index.html")
+
+@app.get("/thank-you")
+def thank_you():
+    return send_from_directory("static", "thank-you.html")
+
+@app.get("/error")
+def error():
+    return send_from_directory("static", "error.html")
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 4242))
+    app.run(port=port, debug=not PROD_MODE)

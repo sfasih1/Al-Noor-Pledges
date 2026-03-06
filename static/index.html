@@ -1,0 +1,413 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Al-Noor Pledges</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1"/>
+    <style>
+      * { box-sizing: border-box; }
+      body { 
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+        max-width: 700px; 
+        margin: 0 auto; 
+        padding: 2rem 1rem; 
+        line-height: 1.6;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+      }
+      .container {
+        background: white;
+        border-radius: 1rem;
+        padding: 2rem;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      }
+      h1 { 
+        color: #764ba2; 
+        margin-top: 0;
+        text-align: center;
+      }
+      .subtitle {
+        text-align: center;
+        color: #666;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+      }
+      .info-box { 
+        background: #f0f4ff; 
+        padding: 1rem; 
+        border-radius: 0.5rem; 
+        margin-bottom: 2rem;
+        border-left: 4px solid #667eea;
+      }
+      .unit-info {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 2rem;
+        padding: 1rem;
+        background: #fafafa;
+        border-radius: 0.5rem;
+      }
+      .unit-item { text-align: center; }
+      .unit-item strong { display: block; color: #667eea; font-size: 1.3rem; }
+      .unit-item small { color: #999; }
+      label { 
+        display: block; 
+        margin-top: 1.2rem; 
+        margin-bottom: 0.4rem;
+        font-weight: 600; 
+        color: #333;
+      }
+      input, select, button { 
+        font-size: 1rem; 
+        padding: 0.75rem; 
+        width: 100%; 
+        margin-top: 0.35rem;
+        border: 1px solid #ddd;
+        border-radius: 0.4rem;
+        font-family: inherit;
+      }
+      input:focus, select:focus {
+        outline: none;
+        border-color: #667eea;
+        background: #f9f9ff;
+      }
+      button { 
+        cursor: pointer; 
+        background: #667eea;
+        color: white;
+        border: none;
+        font-weight: 600;
+        margin-top: 1.5rem;
+        transition: background 0.3s;
+      }
+      button:hover { 
+        background: #764ba2; 
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      .row { 
+        display: grid; 
+        grid-template-columns: 1fr 1fr; 
+        gap: 1rem; 
+      }
+      .total-amount {
+        text-align: center;
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #764ba2;
+        margin: 1.5rem 0;
+        padding: 1rem;
+        background: #f0f4ff;
+        border-radius: 0.5rem;
+      }
+      .error { color: #d32f2f; font-size: 0.95rem; margin-top: 0.3rem; }
+      .loading { display: none; text-align: center; margin-top: 1rem; }
+      button:disabled .loading { display: inline; }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🌙 Al-Noor Pledges</h1>
+      <p class="subtitle">Make Your Blessed Donation</p>
+      
+      <div class="info-box">
+        <p><strong>Tax Deductible:</strong> All donations are tax-deductible. Please contact us with your donation receipt/confirmation to receive an official tax receipt.</p>
+      </div>
+
+      <div class="unit-info">
+        <div class="unit-item">
+          <strong>Al-Noor Islamic Center</strong>
+          <div style="font-size: 1.5rem; color: #667eea; margin: 0.5rem 0;" id="units-counter">100 units</div>
+          <small>Units Available</small>
+        </div>
+      </div>
+
+      <form id="pledge-form">
+        <label for="donation-type">Donation Type</label>
+        <select id="donation-type" name="donation_type">
+          <option value="units">Fixed Unit ($1,000 per unit)</option>
+          <option value="custom">Custom Amount</option>
+        </select>
+
+        <div id="units-wrapper">
+          <label for="units">Number of Units</label>
+          <input id="units" name="units" type="number" min="1" max="100" value="1"/>
+          <span class="error" id="units-error"></span>
+        </div>
+
+        <div id="custom-amount-wrapper" style="display: none;">
+          <label for="custom-amount">Custom Donation Amount</label>
+          <input id="custom-amount" name="custom_amount" type="number" min="1" step="0.01" placeholder="Enter amount in dollars"/>
+          <span class="error" id="custom-amount-error"></span>
+        </div>
+
+        <label for="donor-name">Your Name</label>
+        <input id="donor-name" name="donor_name" type="text" placeholder="Enter your name" />
+
+        <label for="donor-email">Email Address</label>
+        <input id="donor-email" name="donor_email" type="email" placeholder="your@email.com" />
+
+        <div class="row">
+          <div>
+            <label for="frequency">Payment Frequency</label>
+            <select id="frequency" name="frequency">
+              <option value="once">One-Time</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly" selected>Monthly</option>
+            </select>
+          </div>
+          <div>
+            <label for="currency">Currency</label>
+            <select id="currency" name="currency">
+              <option value="usd" selected>USD ($)</option>
+              <option value="cad">CAD ($)</option>
+              <option value="eur">EUR (€)</option>
+              <option value="gbp">GBP (£)</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="duration-wrapper" style="display: none;">
+          <label for="duration">Payment Duration</label>
+          <select id="duration" name="duration">
+          </select>
+        </div>
+
+        <label for="includes-zakat">Does your donation include zakat?</label>
+        <select id="includes-zakat" name="includes_zakat">
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+
+        <div id="zakat-amount-wrapper" style="display: none;">
+          <label for="zakat-amount">How much of your donation is zakat? (in dollars)</label>
+          <input id="zakat-amount" name="zakat_amount" type="number" min="0" step="0.01" placeholder="Enter zakat amount" />
+        </div>
+
+        <label for="is-dedicated">Is this donation dedicated to any loved ones?</label>
+        <select id="is-dedicated" name="is_dedicated">
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+
+        <div id="dedication-names-wrapper" style="display: none;">
+          <label for="dedication-names">Names of loved ones</label>
+          <input id="dedication-names" name="dedication_names" type="text" placeholder="Enter names (e.g., John Doe, Jane Smith)" />
+        </div>
+
+        <div class="total-amount" id="total-display">Total: $1,000.00</div>
+
+        <button type="submit">Proceed to Checkout</button>
+      </form>
+    </div>
+
+    <script>
+      // DOM elements
+      const donationTypeSelect = document.getElementById('donation-type');
+      const unitsInput = document.getElementById('units');
+      const customAmountInput = document.getElementById('custom-amount');
+      const unitsWrapper = document.getElementById('units-wrapper');
+      const customAmountWrapper = document.getElementById('custom-amount-wrapper');
+      const totalDisplay = document.getElementById('total-display');
+      const form = document.getElementById('pledge-form');
+      const unitsError = document.getElementById('units-error');
+      const customAmountError = document.getElementById('custom-amount-error');
+      const frequencySelect = document.getElementById('frequency');
+      const durationSelect = document.getElementById('duration');
+      const durationWrapper = document.getElementById('duration-wrapper');
+      const currencySelect = document.getElementById('currency');
+      const includesZakatSelect = document.getElementById('includes-zakat');
+      const zakatAmountWrapper = document.getElementById('zakat-amount-wrapper');
+      const zakatAmountInput = document.getElementById('zakat-amount');
+      const isDedicatedSelect = document.getElementById('is-dedicated');
+      const dedicationNamesWrapper = document.getElementById('dedication-names-wrapper');
+      const dedicationNamesInput = document.getElementById('dedication-names');
+
+      const UNIT_PRICE = 1000;
+
+      // Toggle between units and custom amount
+      function toggleDonationType() {
+        if (donationTypeSelect.value === 'units') {
+          unitsWrapper.style.display = 'block';
+          customAmountWrapper.style.display = 'none';
+        } else {
+          unitsWrapper.style.display = 'none';
+          customAmountWrapper.style.display = 'block';
+        }
+        updateTotal();
+      }
+
+      // Toggle zakat amount dropdown based on zakat selection
+      function toggleZakatAmount() {
+        if (includesZakatSelect.value === 'yes') {
+          zakatAmountWrapper.style.display = 'block';
+        } else {
+          zakatAmountWrapper.style.display = 'none';
+        }
+      }
+
+      // Toggle dedication names input based on dedication selection
+      function toggleDedicationNames() {
+        if (isDedicatedSelect.value === 'yes') {
+          dedicationNamesWrapper.style.display = 'block';
+        } else {
+          dedicationNamesWrapper.style.display = 'none';
+        }
+      }
+
+      // Populate duration options based on frequency
+      function populateDurationOptions() {
+        const frequency = frequencySelect.value;
+        durationSelect.innerHTML = '';
+
+        if (frequency === 'weekly') {
+          for (let i = 1; i <= 26; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = `${i} week${i > 1 ? 's' : ''}`;
+            if (i === 4) option.selected = true;
+            durationSelect.appendChild(option);
+          }
+          durationWrapper.style.display = 'block';
+        } else if (frequency === 'monthly') {
+          for (let i = 1; i <= 6; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = `${i} month${i > 1 ? 's' : ''}`;
+            durationSelect.appendChild(option);
+          }
+          durationWrapper.style.display = 'block';
+        } else {
+          durationWrapper.style.display = 'none';
+        }
+      }
+
+      // Update total when inputs change
+      function updateTotal() {
+        const donationType = donationTypeSelect.value;
+        const frequency = frequencySelect.value;
+        const duration = parseInt(durationSelect.value) || 1;
+        const currencyCode = currencySelect.value.toUpperCase();
+        let baseTotal = 0;
+
+        if (donationType === 'units') {
+          const units = parseInt(unitsInput.value) || 0;
+          if (units < 1 || units > 100) {
+            unitsError.textContent = 'Units must be between 1 and 100.';
+            return;
+          }
+          unitsError.textContent = '';
+          baseTotal = units * UNIT_PRICE;
+        } else {
+          const customAmount = parseFloat(customAmountInput.value) || 0;
+          if (customAmount < 1) {
+            customAmountError.textContent = 'Amount must be at least $1.';
+            return;
+          }
+          customAmountError.textContent = '';
+          baseTotal = customAmount;
+        }
+
+        let displayText = '';
+        
+        if (frequency === 'once') {
+          displayText = `Total: ${currencyCode} ${baseTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        } else if (frequency === 'weekly') {
+          const perWeekAmount = baseTotal / duration;
+          displayText = `Total Pledge: ${currencyCode} ${baseTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${duration} weeks @ ${currencyCode} ${perWeekAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/week`;
+        } else if (frequency === 'monthly') {
+          const perMonthAmount = baseTotal / duration;
+          displayText = `Total Pledge: ${currencyCode} ${baseTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | ${duration} months @ ${currencyCode} ${perMonthAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/month`;
+        }
+        
+        totalDisplay.textContent = displayText;
+      }
+
+      // Event listeners
+      donationTypeSelect.addEventListener('change', toggleDonationType);
+      unitsInput.addEventListener('change', updateTotal);
+      unitsInput.addEventListener('input', updateTotal);
+      customAmountInput.addEventListener('change', updateTotal);
+      customAmountInput.addEventListener('input', updateTotal);
+      frequencySelect.addEventListener('change', () => {
+        populateDurationOptions();
+        updateTotal();
+      });
+      durationSelect.addEventListener('change', updateTotal);
+      currencySelect.addEventListener('change', updateTotal);
+      includesZakatSelect.addEventListener('change', toggleZakatAmount);
+      isDedicatedSelect.addEventListener('change', toggleDedicationNames);
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const donationType = donationTypeSelect.value;
+        const frequency = frequencySelect.value;
+        const duration = frequency !== 'once' ? parseInt(durationSelect.value) : 1;
+        const includesZakat = includesZakatSelect.value === 'yes';
+        const zakatAmount = includesZakat ? parseFloat(zakatAmountInput.value) || 0 : 0;
+        const isDedicated = isDedicatedSelect.value === 'yes';
+        const dedicationNames = isDedicated ? dedicationNamesInput.value : '';
+
+        let units = null;
+        let customAmount = null;
+
+        if (donationType === 'units') {
+          units = parseInt(unitsInput.value);
+          if (units < 1 || units > 100) {
+            unitsError.textContent = 'Units must be between 1 and 100.';
+            return;
+          }
+        } else {
+          customAmount = parseFloat(customAmountInput.value);
+          if (customAmount < 1) {
+            customAmountError.textContent = 'Amount must be at least $1.';
+            return;
+          }
+        }
+
+        const button = e.target.querySelector('button');
+        button.disabled = true;
+        button.textContent = 'Processing...';
+
+        const payload = {
+          donation_type: donationType,
+          units: units,
+          custom_amount: customAmount,
+          frequency: frequency,
+          duration: duration,
+          currency: currencySelect.value,
+          donor_name: document.getElementById('donor-name').value || 'Anonymous',
+          donor_email: document.getElementById('donor-email').value,
+          includes_zakat: includesZakat,
+          zakat_amount: zakatAmount,
+          is_dedicated: isDedicated,
+          dedication_names: dedicationNames
+        };
+
+        try {
+          const res = await fetch('/create-checkout-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to create checkout');
+          window.location = data.url;
+        } catch (err) {
+          alert('Error: ' + err.message);
+          button.disabled = false;
+          button.textContent = 'Proceed to Checkout';
+        }
+      });
+
+      // Initialize display
+      populateDurationOptions();
+      toggleZakatAmount();
+      toggleDedicationNames();
+      updateTotal();
+    </script>
+  </body>
+</html>
