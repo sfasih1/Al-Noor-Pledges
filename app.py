@@ -257,4 +257,4 @@ def error():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 4242))
-    app.run(port=port, debug=not PROD_MODE)
+    app.run(host="0.0.0.0", port=port, debug=not PROD_MODE)
